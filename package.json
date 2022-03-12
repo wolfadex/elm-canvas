@@ -1,7 +1,7 @@
 {
-  "name": "REPLACEME",
+  "name": "@wolfadex/elm-canvas",
   "version": "0.0.1",
-  "description": "REPLACEME",
+  "description": "A 2D drawing API based on DOM Canvas & ianmackenzie/elm-geometry.",
   "devDependencies": {
     "elm-review": "2.6.1",
     "elm-test": "latest-0.19.1",
@@ -13,6 +13,6 @@
     "test": "elm-verify-examples --run-tests && elm-test",
     "postinstall": "elm-tooling install"
   },
-  "author": "REPLACEME",
+  "author": "Wolfgang Schuster",
   "license": "BSD-3-Clause"
 }

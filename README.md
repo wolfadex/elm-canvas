@@ -1,4 +1,8 @@
-# `replaceme` [![Build Status](https://github.com/replaceme/replaceme/workflows/CI/badge.svg)](https://github.com/replaceme/replaceme/actions?query=branch%3Amain)
+# `elm-canvas`
+
+[![Build Status](https://github.com/replaceme/replaceme/workflows/CI/badge.svg)](https://github.com/replaceme/replaceme/actions?query=branch%3Amain)
+
+This is a fork of [joakin/elm-canvas](https://package.elm-lang.org/packages/joakin/elm-canvas/latest/) to use [ianmackenzie/elm-geometry](https://package.elm-lang.org/packages/ianmackenzie/elm-geometry/latest/) add more features.
 
 ## What this repo includes
 
