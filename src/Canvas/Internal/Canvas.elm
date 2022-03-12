@@ -15,10 +15,12 @@ import Canvas.Texture exposing (Texture)
 import Circle2d exposing (Circle2d)
 import Color exposing (Color)
 import Length exposing (Meters)
+import Point2d exposing (Point2d)
+import Rectangle2d exposing (Rectangle2d)
 
 
 type alias Point =
-    ( Float, Float )
+    Point2d Meters WorldCoordinates
 
 
 type Setting
@@ -57,7 +59,7 @@ type alias Text =
 
 
 type Shape
-    = Rect Point Float Float
+    = Rect (Rectangle2d Meters WorldCoordinates)
     | Circle (Circle2d Meters WorldCoordinates)
     | Path Point (List PathSegment)
     | Arc Point Float Float Float Bool

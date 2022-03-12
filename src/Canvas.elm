@@ -70,7 +70,10 @@ import Html.Events
 import Html.Keyed
 import Json.Decode
 import Length exposing (Meters)
-import Point2d
+import Pixels exposing (Pixels)
+import Point2d exposing (Point2d)
+import Quantity exposing (Quantity)
+import Rectangle2d exposing (Rectangle2d)
 
 
 
@@ -102,11 +105,15 @@ display](https://developer.mozilla.org/es/docs/Web/CSS/display) for possible
 display values.
 
 -}
-toHtml : ( Int, Int ) -> List (Attribute msg) -> List Renderable -> Html msg
-toHtml ( w, h ) attrs entities =
+toHtml :
+    { width : Quantity Int Pixels, height : Quantity Int Pixels }
+    -> List (Attribute msg)
+    -> List Renderable
+    -> Html msg
+toHtml { width, height } attrs entities =
     toHtmlWith
-        { width = w
-        , height = h
+        { width = width
+        , height = height
         , textures = []
         }
         attrs
@@ -141,8 +148,8 @@ See `toHtml` above and the `Canvas.Texture` module for more details.
 
 -}
 toHtmlWith :
-    { width : Int
-    , height : Int
+    { width : Quantity Int Pixels
+    , height : Quantity Int Pixels
     , textures : List (Canvas.Texture.Source msg)
     }
     -> List (Attribute msg)
@@ -150,7 +157,11 @@ toHtmlWith :
     -> Html msg
 toHtmlWith options attrs entities =
     Html.Keyed.node "elm-canvas"
-        (commands (render entities) :: Html.Attributes.height options.height :: Html.Attributes.width options.width :: attrs)
+        (commands (render entities)
+            :: Html.Attributes.height (Pixels.toInt options.height)
+            :: Html.Attributes.width (Pixels.toInt options.width)
+            :: attrs
+        )
         (( "__canvas", cnvs )
             :: List.map renderTextureSource options.textures
         )
@@ -177,7 +188,7 @@ position.
 
 -}
 type alias Point =
-    ( Float, Float )
+    Point2d Meters WorldCoordinates
 
 
 {-| A `Renderable` is a thing that the canvas knows how to render, similar to
@@ -342,9 +353,9 @@ corner, the width, and the height.
     rect pos width height
 
 -}
-rect : Point -> Float -> Float -> Shape
-rect pos width height =
-    Rect pos width height
+rect : Rectangle2d Meters WorldCoordinates -> Shape
+rect =
+    Rect
 
 
 {-| Creates a circle. It takes the position of the center of the circle, and the
@@ -390,7 +401,11 @@ function from elm/core.
 with `path` to make a triangle, and then the arc. See the pie chart example.
 
 -}
-arc : Point -> Float -> { startAngle : Float, endAngle : Float, clockwise : Bool } -> Shape
+arc :
+    Point
+    -> Float
+    -> { startAngle : Float, endAngle : Float, clockwise : Bool }
+    -> Shape
 arc pos radius { startAngle, endAngle, clockwise } =
     Arc pos radius startAngle endAngle (not clockwise)
 
@@ -639,14 +654,37 @@ renderDrawable drawable drawOp cmds =
 renderShape : Shape -> Commands -> Commands
 renderShape shape cmds =
     case shape of
-        Rect ( x, y ) w h ->
-            Canvas.Internal.CustomElementJsonApi.rect x y w h :: Canvas.Internal.CustomElementJsonApi.moveTo x y :: cmds
+        Rect r ->
+            let
+                ( centerX, centerY ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates (Rectangle2d.centerPoint r))
+
+                ( w, h ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Rectangle2d.dimensions r)
+
+                x =
+                    centerX - w / 2
+
+                y =
+                    centerY - h / 2
+            in
+            Canvas.Internal.CustomElementJsonApi.rect x y w h
+                :: Canvas.Internal.CustomElementJsonApi.moveTo x y
+                :: cmds
 
         Circle c ->
             let
                 ( x, y ) =
-                    Point2d.coordinates (Circle2d.centerPoint c)
-                        |> Tuple.mapBoth Length.inMeters Length.inMeters
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates (Circle2d.centerPoint c))
 
                 r =
                     Length.inMeters (Circle2d.radius c)
@@ -655,10 +693,28 @@ renderShape shape cmds =
                 :: Canvas.Internal.CustomElementJsonApi.moveTo (x + r) y
                 :: cmds
 
-        Path ( x, y ) segments ->
-            List.foldl renderLineSegment (Canvas.Internal.CustomElementJsonApi.moveTo x y :: cmds) segments
+        Path p segments ->
+            let
+                ( x, y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p)
+            in
+            List.foldl renderLineSegment
+                (Canvas.Internal.CustomElementJsonApi.moveTo x y
+                    :: cmds
+                )
+                segments
 
-        Arc ( x, y ) radius startAngle endAngle anticlockwise ->
+        Arc p radius startAngle endAngle anticlockwise ->
+            let
+                ( x, y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p)
+            in
             Canvas.Internal.CustomElementJsonApi.moveTo (x + radius * cos endAngle) (y + radius * sin endAngle)
                 :: Canvas.Internal.CustomElementJsonApi.arc x y radius startAngle endAngle anticlockwise
                 :: Canvas.Internal.CustomElementJsonApi.moveTo (x + radius * cos startAngle) (y + radius * sin startAngle)
@@ -668,19 +724,78 @@ renderShape shape cmds =
 renderLineSegment : PathSegment -> Commands -> Commands
 renderLineSegment segment cmds =
     case segment of
-        ArcTo ( x, y ) ( x2, y2 ) radius ->
-            Canvas.Internal.CustomElementJsonApi.arcTo x y x2 y2 radius :: cmds
+        ArcTo p1 p2 radius ->
+            let
+                ( x1, y1 ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p1)
 
-        BezierCurveTo ( cp1x, cp1y ) ( cp2x, cp2y ) ( x, y ) ->
+                ( x2, y2 ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p2)
+            in
+            Canvas.Internal.CustomElementJsonApi.arcTo x1 y1 x2 y2 radius :: cmds
+
+        BezierCurveTo cp1 cp2 p ->
+            let
+                ( cp1x, cp1y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates cp1)
+
+                ( cp2x, cp2y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates cp2)
+
+                ( x, y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p)
+            in
             Canvas.Internal.CustomElementJsonApi.bezierCurveTo cp1x cp1y cp2x cp2y x y :: cmds
 
-        LineTo ( x, y ) ->
+        LineTo p ->
+            let
+                ( x, y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p)
+            in
             Canvas.Internal.CustomElementJsonApi.lineTo x y :: cmds
 
-        MoveTo ( x, y ) ->
+        MoveTo p ->
+            let
+                ( x, y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p)
+            in
             Canvas.Internal.CustomElementJsonApi.moveTo x y :: cmds
 
-        QuadraticCurveTo ( cpx, cpy ) ( x, y ) ->
+        QuadraticCurveTo cp p ->
+            let
+                ( cpx, cpy ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates cp)
+
+                ( x, y ) =
+                    Tuple.mapBoth
+                        Length.inMeters
+                        Length.inMeters
+                        (Point2d.coordinates p)
+            in
             Canvas.Internal.CustomElementJsonApi.quadraticCurveTo cpx cpy x y :: cmds
 
 
@@ -694,7 +809,10 @@ renderTextDrawOp : DrawOp -> Text -> Commands -> Commands
 renderTextDrawOp drawOp txt cmds =
     let
         ( x, y ) =
-            txt.point
+            Tuple.mapBoth
+                Length.inMeters
+                Length.inMeters
+                (Point2d.coordinates txt.point)
     in
     case drawOp of
         NotSpecified ->
@@ -783,7 +901,14 @@ renderShapeStroke maybeColor cmds =
 
 
 renderTexture : Point -> Texture -> Commands -> Commands
-renderTexture ( x, y ) t cmds =
+renderTexture p t cmds =
+    let
+        ( x, y ) =
+            Tuple.mapBoth
+                Length.inMeters
+                Length.inMeters
+                (Point2d.coordinates p)
+    in
     Canvas.Internal.Texture.drawTexture x y t cmds
 
 
@@ -804,7 +929,14 @@ renderTextureSource textureSource =
 
 
 renderClear : Point -> Float -> Float -> Commands -> Commands
-renderClear ( x, y ) w h cmds =
+renderClear p w h cmds =
+    let
+        ( x, y ) =
+            Tuple.mapBoth
+                Length.inMeters
+                Length.inMeters
+                (Point2d.coordinates p)
+    in
     Canvas.Internal.CustomElementJsonApi.clearRect x y w h :: cmds
 
 
