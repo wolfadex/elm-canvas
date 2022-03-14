@@ -5,7 +5,7 @@ module Canvas exposing
     , Shape
     , rect, circle, arc, path
     , PathSegment, arcTo, bezierCurveTo, lineTo, moveTo, quadraticCurveTo
-    , clearScreen
+    , clearScreen, none
     )
 
 {-| This module exposes a nice drawing API that works on top of the the DOM
@@ -610,6 +610,15 @@ group settings entities =
         )
 
 
+none : Renderable
+none =
+    Renderable
+        { commands = []
+        , drawOp = NotSpecified
+        , drawable = DrawableNone
+        }
+
+
 
 -- Rendering internals
 
@@ -649,6 +658,9 @@ renderDrawable drawable drawOp cmds =
 
         DrawableGroup renderables ->
             renderGroup drawOp renderables cmds
+
+        DrawableNone ->
+            cmds
 
 
 renderShape : Shape -> Commands -> Commands

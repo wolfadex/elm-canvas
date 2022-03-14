@@ -44,6 +44,7 @@ type Drawable
     | DrawableClear Point Float Float
     | DrawableClearScreen
     | DrawableGroup (List Renderable)
+    | DrawableNone
 
 
 type Renderable
